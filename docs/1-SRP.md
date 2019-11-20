@@ -147,34 +147,6 @@ Solución
 ```php
 <?php
 class User {
- 
-    ...
-
-    protected function formatResponse(User $user) {
-        return [
-          "name"     => $user->name,
-          "userName" => $user->username,
-          "rank"     => $user->rank,
-          "score"    => $user->score
-        ];
-    }
- 
-    protected function validateUser(User $user) {
-        if ($user->name) {
-          return true;
-        } else {
-          throw new NameRequiredException("Name is required");
-        }
-    }
- 
-    protected function fetchUserFromDatabase($userId) {
-        return $this->userRepository->find($userId);
-    }
- 
-    ...
-}
-
-class User {
     ...
 }
 

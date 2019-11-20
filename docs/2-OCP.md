@@ -214,29 +214,29 @@ Vamos a realizar un pequeño cambio en nuestro Bundle:
 ```php
 class SecurityController extends Controller
 {
-    public function register($securityService)
+    public function register($registerService)
     {
         // ...
-        $securityService->register($registerData);
+        $registerService->register($registerData);
         // ...
     }
 }
 ```
 
-Aquí se ha aplicado otra vez la **inversión de dependencias** (es el último de los principios SOLID). Esta modificación nos permitiría cambiar el objeto $securityService del bundle por otro hecho por nosotros que sea compatible: Es decir, crear una clase nueva con un método register($registerData) y decirle al service container de Symfony que inyecte el nuestro en vez del del Bundle.
+Aquí se ha aplicado otra vez la **inversión de dependencias** (es el último de los principios SOLID). Esta modificación nos permitiría cambiar el objeto $registerService del bundle por otro hecho por nosotros que sea compatible: Es decir, crear una clase nueva con un método register($registerData) y decirle al service container de Symfony que inyecte el nuestro en vez del del Bundle.
 
 ```php
 class SecurityController extends Controller
 {
-    public function register($securityService)
+    public function register($registerService)
     {
         // ...
-        $securityService->register($registerData); // Este securityService sería el nuestro en vez del del bundle
+        $registerService->register($registerData); // Este registerService sería el nuestro (MyRegisterService) en vez del del bundle
         // ...
     }
 }
 
-class MiSecurityService {
+class MyRegisterService extends LleegoSecurityBundle\Services\RegisterService {
     public function register($registerData) {
         // ...
         // Código original del servicio del bundle
@@ -263,10 +263,10 @@ class SecurityController extends Controller
     /**
      * @Route("/register")
      */
-    public function register($securityService, $eventDispatcher)
+    public function register($registerService, $eventDispatcher)
     {
         // ...
-        $securityService->register($registerData);
+        $registerService->register($registerData);
         $eventDispatcher->dispatch('userResgistered',$registerData);
         // ...
     }
