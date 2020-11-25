@@ -1,6 +1,7 @@
 # Principio Open-Closed
 
-Las clases que usas deberían estar:
+Las clases/modulos/funciones/... que usas deberían estar:
+
 - abiertas para poder extenderse
 - cerradas para modificarse.
 
@@ -10,270 +11,115 @@ Traducción: deben poder extenderse sin modificarlas.
 
 ### Ejemplo 1
 
-```php
-class LoginModule {
-    
-    public function login($user) {
-        if($user instanceof NormalUser) {
-            $this->authenticateNormalUser($user);
-        } else if($user instanceof GmailUser) {    
-            $this->authenticateGmailUser($user);
-        }
-    }
+En este caso, tenemos una clase CartStorage que almacena el carrito de la compra del usuario en el localStorage.
 
-    public function authenticateNormalUser($user) {
-        // ...
-    }
-
-    public function authenticateGmailUser($user) {
-        // ...
-    }
-}
-```
-
-¿Y si queremos añadir más tipos de usuario con sus métodos de autenticación?
-
-Solución
-
-1) Aplicar principio SRP:
-
-```php
-interface AuthenticateUserInterface {
-    public function authenticate($user);
-}
-
-class NormalUserAuthenticator implements AuthenticateUserInterface {
-    public function authenticate($user) {
-        // ...
-    }
-}
-
-class GmailUserAuthenticator implements AuthenticateUserInterface {
-    public function authenticate($user) {
-        // ...
-    }
-}
-```
-
-2) Aplicar el patrón *strategy*:
-
-```php
-class LoginModule {
-    
-    public function login($user) {
-        $class = get_class($user).'Authenticator';
-        $class::authenticate($user);
-    }
-}
-```
-
-La clase LoginModule ha quedado completamente CERRADA. No hace falta modificarla para meter más métodos de autenticación.
-
-Esta solución está basada en el **strategy pattern**. También suele encajar muy bien en estos casos el **factory pattern**.
-
-### Ejemplo 2
-
-En este caso, tenemos una clase Repository que se conecta a base de datos (podría ser MySQL, por ejemplo). Pero de repente queremos trabajar con una API en vez de con la base de datos.
-
-```php
-<?php
-class OrderRepository
+```typescript
+class CartStorage
 {
-    public function find($orderID)
-    {
-        $pdo = new PDO(
-            $this->config->getDsn(),
-            $this->config->getDBUser(),
-            $this->config->getDBPassword()
-        );
-        $statement = $pdo->prepare("SELECT * FROM `orders` WHERE id=:id");
-        $statement->execute(array(":id" => $orderID));
-        return $query->fetchObject("Order");
+    find(productID) {
+        let products = JSON.parse(localstorage.get('cart', []));
+        return products.find( p => p.id === productID);
     }
-    
-    public function save($order){/*...*/}
-    public function update($order){/*...*/}
-    public function delete($order){/*...*/}
+
+    add(product){/*...*/}
+    update(product){/*...*/}
+    remove(product){/*...*/}
 }
-?>
 ```
+
+Pero de repente queremos trabajar también con SessionStorage y/o con IndexedDB además de con LocalStorage.
 
 ¿Cómo abordamos este caso? Hay varias opciones. 
 
-- Una de ellas es modificar todos los métodos de OrderRepository, pero esto no cumple el principio abierto/cerrado.
+- Una de ellas es modificar todos los métodos de CartStorage, pero esto no cumple el principio abierto/cerrado.
 
-- Otra sería crear otra clase que herede de OrderRepository y sobreescribir todos los métodos. Pero no parece muy profesional.
+- Otra sería crear otra clase que herede de CartStorage y sobreescribir todos los métodos. Pero no parece muy profesional.
 
-- Otra sería que orderRepository utilice una interfaz e inyectarle la clase concreta en tiempo de ejecución (inversión de dependencias).
+- Otra sería que CartStorage utilice una interfaz e inyectarle la clase concreta en tiempo de ejecución (inversión de dependencias).
 
-```php
-<?php
-class OrderRepository
+```typescript
+class CartStorage
 {
-    private $source;
+    private storage;
 
-    public function setSource(IOrderSource $source)
-    {
-        $this->source = $source;
+    setStorageService(storage: StorageService) {
+        this.storage = storage;
     }
 
-    public function find($orderID)
-    {
-        return $this->source->find($orderID);
+    find(productID) {
+        return this.storage.find(productID)
+    }
+
+    add(product){/*...*/}
+    update(product){/*...*/}
+    remove(product){/*...*/}
+}
+
+interface StorageService
+{
+    find(productID);
+    add(product);
+    update(product);
+    remove(product);
+}
+
+class LocalStorageService implements StorageService
+{
+    find(productID) {
+        let products = JSON.parse(localstorage.get('cart', []));
+        return products.find( p => p.id === productID);
+    }
+
+    add(product);
+    update(product);
+    remove(product);
+}
+
+class SessionStorageService implements StorageService
+{
+    find(productID) {
+        let products = JSON.parse(sessionstorage.get('cart', []));
+        return products.find( p => p.id === productID);
     }
     
-    public function save($order){/*...*/}
-    public function update($order){/*...*/}
+    add(product);
+    update(product);
+    remove(product);
 }
 
-interface IOrderSource
+class IndexedDBStorageService implements StorageService
 {
-    public function find($orderID);
-    public function save($order);
-    public function update($order);
-    public function delete($order);
+    find(productID) {
+        // ...
+    }
+    
+    add(product);
+    update(product);
+    remove(product);
 }
 
-class MySQLOrderSource implements IOrderSource
+class ApiBackendStorageService implements StorageService
 {
-    public function find($orderID);
-    public function save($order){/*...*/}
-    public function update($order){/*...*/}
-    public function delete($order){/*...*/}
+    find(productID) {
+        // ...
+    }
+    
+    add(product);
+    update(product);
+    remove(product);
 }
 
-class ApiOrderSource implements IOrderSource
-{
-    public function find($orderID);
-    public function save($order){/*...*/}
-    public function update($order){/*...*/}
-    public function delete($order){/*...*/}
-}
-?>
+// Uso
+const storageService = new IndexedDBStorageService();
+const cartStorage = new CartStorage();
+cartStorage.setStorageService(storageService);
 ```
 
-Así podemos cambiar el comportamiento de OrderRepository sin modificar la clase. Si queremos que trabaje contra una base de datos, le pasaremos la clase MySQLOrderSource y si queremos que trabaje contra una API le pasaremos la clase ApiOrderSource, ambas con el mismo interfaz.
+Así podemos cambiar el comportamiento de CartStorage sin modificar la clase. Si queremos que trabaje con IndexedDB, le pasaremos la clase IndexedDBStorageService y si queremos que trabaje contra una API le pasaremos la clase ApiBackendStorageService, ambas con el mismo interfaz.
 
 Esta solución está basada en el patrón de **inversión de dependencias**.
 
-El patrón de inversión de dependencias también hubiera funcionado en el ejemplo 1.
-
-### Ejemplo 3
-
-Pongamos que hemos programado un Bundle que gestiona la seguridad de nuestra aplicación. Entre otras cosas tiene un controlador que registra a un usuario a través de un servicio también incluido en el Bundle.
-
-```yml
-register:
-  path:     /register
-  defaults: { _controller: LleegoSecurityBundle\Controller\SecurityController:register }
-```
-
-```php
-class SecurityController extends Controller
-{
-    public function register()
-    {
-        // ...
-        RegisterService::register($registerData);
-        // ...
-    }
-}
-```
-
-El bundle está funcionando a la perfección en varias aplicaciones. Pero en una aplicación concreta queremos que cada vez que se registre un usuario, se anote ese suceso en una tabla LogUserAccess. 
-
-¿Cómo lo resolveríais?
-
-Una solución es copiar el controlador del bundle y hacer que se ejecute un controlador de nuestra aplicación para la ruta /register. En ese controlador añadiríamos nuestro código nuevo:
-
-```yml
-register:
-  path:     /register
-  defaults: { _controller: App\Controller\SecurityController:register }
-```
-
-```php
-class MySecurityController extends Controller
-{
-    public function register()
-    {
-        // ...
-        RegisterService::register($registerData);
-        $LogUserAccessService->insert($registerData);
-        // ...
-    }
-}
-```
-
-Es una chapuza, pero funciona.
-
-No tenemos otra alternativa porque las clases de nuestro bundle no siguen el principio Open/Closed.
-
-Vamos a realizar un pequeño cambio en nuestro Bundle:
-
-```php
-class SecurityController extends Controller
-{
-    public function register($registerService)
-    {
-        // ...
-        $registerService->register($registerData);
-        // ...
-    }
-}
-```
-
-Aquí se ha aplicado otra vez la **inversión de dependencias** (es el último de los principios SOLID). Esta modificación nos permitiría cambiar el objeto $registerService del bundle por otro hecho por nosotros que sea compatible: Es decir, crear una clase nueva con un método register($registerData) y decirle al service container de Symfony que inyecte el nuestro en vez del del Bundle.
-
-```php
-class SecurityController extends Controller
-{
-    public function register($registerService)
-    {
-        // ...
-        $registerService->register($registerData); // Este registerService sería el nuestro (MyRegisterService) en vez del del bundle
-        // ...
-    }
-}
-
-class MyRegisterService extends LleegoSecurityBundle\Services\RegisterService {
-    public function register($registerData) {
-        // ...
-        // Código original del servicio del bundle
-        // ...
-
-        // ...
-        // Código nuevo para insertar registro en la tabla fechasRegistrosUsuarios
-        // ...
-    }
-}
-```
-
-La **inversión de dependencias** es una buena táctica para cumplir el principio open/close, pero en este caso concreto nos hace incumplir el principio de responsabilidad única en la clase MiSecurityService.
-
-Además, esta aplicación (aplicación1) quiere utilizar el bundle y además registrar cosas en una **tabla** (servicio1). Pero otra aplicación (aplicación2) quizás quiera escribir en un **fichero de Log** (servicio2). Y otra aplicación (aplicación3) igual lo que quiere es **enviar un correo** a los comerciales avisando de que se ha registrado un nuevo cliente (servicio3). Y otra aplicación (aplicación4) quizás quiere **registrar en fichero de log y también enviar un correo** (servicio4)...
-
-Cada aplicación tendrá que hacerse su propio MiSecurityService, y además, no se pueden aprovechar los servicios entre las aplicaciones porque no hay 2 iguales. A pesar de que la aplicación 4 quiere hacer lo que hacen los servicios 2 y 3, tiene que crearse el suyo propio para que haga las tareas de ambos servicios.
-
-Hay otra solución mejor para este caso. Programar el bundle con **EVENTOS**.
-
-```php
-class SecurityController extends Controller
-{
-    /**
-     * @Route("/register")
-     */
-    public function register($registerService, $eventDispatcher)
-    {
-        // ...
-        $registerService->register($registerData);
-        $eventDispatcher->dispatch('userResgistered',$registerData);
-        // ...
-    }
-}
-```
-
-De esta forma, cada aplicación puede tener uno o más suscribers que hagan cosas cuando un usuario ha sido registrado. Un suscriber que escriba en la bbdd, otro suscriber que escriba en un fichero, otro suscriber que mande correos...
+Otros patrones que suelen funcionar muy bien son el Strategy y el Observer (eventDispatcher/eventEmitter)
 
 ## ¿Cómo detectar que estamos violando el principio Open/Closed?
 
@@ -285,163 +131,166 @@ Una de las formas más sencillas para detectarlo es darnos cuenta de qué clases
 
 Marcador de progreso de descarga de un fichero
 
-```php
+```typescript
 class File {
-    public $length;
-    public $sent;
+    length: number;
+    sent: number;
 }
 
 class Progress {
  
-    private $file;
+    private file;
  
-    function __construct(File $file) {
-        $this->file = $file;
+    constructor(file) {
+        this.file = file;
     }
  
-    function getAsPercent() {
-        return $this->file->sent * 100 / $this->file->length;
+    getAsPercent() {
+        return this.file.sent * 100 / this.file.length;
     }
- 
 }
 ```
 
 Uso:
 
-```php
-function testItCanGetTheProgressOfAFileAsAPercent() {
-    $file = new File();
-    $file->setLength(200);
-    $file->setSent(0);
+```typescript
+
+    file = new File();
+    file.setLength(200);
+    file.setSent(0);
  
-    $progress = new Progress($file);
-    $this->assertEquals(0, $progress->getAsPercent());
+    progress = new Progress(file);
+    console.log(progress.getAsPercent()); // 0
 
-    $file->setSent(100);
-    $this->assertEquals(50, $progress->getAsPercent());
+    file.setSent(100);
+    console.log(progress.getAsPercent()); // 50
 
-    $file->setSent(150);
-    $this->assertEquals(75, $progress->getAsPercent());
+    file.setSent(150);
+    console.log(progress.getAsPercent()); // 75
 
-    $file->setSent(2000);
-    $this->assertEquals(100, $progress->getAsPercent());
+    file.setSent(200);
+    console.log(progress.getAsPercent()); // 100
 }
 ```
 
 Se quiere aprovechar la clase Progress para medir también el progreso en porcentaje de objetos Audio y objetos Video:
 
-```php
-function testItCanGetTheProgressOfAnAudioAsAPercent() {
-    $audio = new Audio();
-    $audio->setDuration(200);
-    $audio->setPlayed(0);
- 
-    $progress = new Progress($audio);
-    $this->assertEquals(0, $progress->getAsPercent());
+```typescript
+class Audio {
+    duration: number;
+    played: number;
+}
 
-    $audio->setPlayed(100);
-    $this->assertEquals(50, $progress->getAsPercent());
+audio = new Audio();
+audio.setDuration(200);
+audio.setPlayed(0);
 
-    $audio->setPlayed(150);
-    $this->assertEquals(75, $progress->getAsPercent());
+progress = new Progress(audio);
+console.log(progress.getAsPercent()); // 0
 
-    $audio->setPlayed(200);
-    $this->assertEquals(100, $progress->getAsPercent());
+audio.setPlayed(100);
+console.log(progress.getAsPercent()); // 50
+
+audio.setPlayed(150);
+console.log(progress.getAsPercent()); // 75
+
+audio.setPlayed(200);
+console.log(progress.getAsPercent()); // 100
 }
 ```
 
 Programar el código de la clase Audio y los cambios necesarios en File y en Progress para cumplir los requisitos. Se pueden añadir otras clases/interfaces.
 
 
-```php
+```typescript
 interface Measurable {
-    function getTotal();
-    function getCurrent();
+    getTotal();
+    getCurrent();
 }
 ```
 
-```php
-class File implements Measurable {
-    public $length;
-    public $sent;
-
-    public function getTotal() { 
-        return $this->length;
-    };
-
-    public function getCurrent() { 
-        return $this->sent
-    };
-}
-```
-
-```php
-class Audio implements Measurable {
-    public $duration;
-    public $played;
-
-    public function getTotal() { 
-        return $this->duration;
-    };
-
-    public function getCurrent() { 
-        return $this->played
-    };
-}
-```
-
-```php
+```typescript
 class Progress {
  
-    private $item;
+    private item: Measurable;
  
-    function __construct(Measurable $item) {
-        $this->item = $item;
+    constructor(item: Measurable) {
+        this.item = $item;
     }
  
     function getAsPercent() {
-        return $this->item->getCurrent() * 100 / $this->item->getTotal();
+        return this.item.getCurrent() * 100 / this.item.getTotal();
     }
- 
 }
 ```
 
+```typescript
+class File implements Measurable {
+    public length;
+    public sent;
 
-```php
-function testItCanGetTheProgressOfAFileAsAPercent() {
-    $file = new File();
-    $file->setLength(200);
-    $file->setSent(0);
+    public function getTotal() { 
+        return this.length;
+    };
+
+    public function getCurrent() { 
+        return this.sent
+    };
+}
+```
+
+```typescript
+class Audio implements Measurable {
+    public duration;
+    public played;
+
+    public function getTotal() { 
+        return this.duration;
+    };
+
+    public function getCurrent() { 
+        return this.played
+    };
+}
+```
+
+El uso quedaría así
+
+```typescript
+
+    file = new File();
+    file.setLength(200);
+    file.setSent(0);
  
-    $progress = new Progress($file);
-    $this->assertEquals(0, $progress->getAsPercent());
+    progress = new Progress(file);
+    console.log(progress.getCurrent()); // 0
 
-    $file->setSent(100);
-    $this->assertEquals(50, $progress->getAsPercent());
+    file.setSent(100);
+    console.log(progress.getCurrent()); // 50
 
-    $file->setSent(150);
-    $this->assertEquals(75, $progress->getAsPercent());
+    file.setSent(150);
+    console.log(progress.getCurrent()); // 75
 
-    $file->setSent(2000);
-    $this->assertEquals(100, $progress->getAsPercent());
+    file.setSent(2000);
+    console.log(progress.getCurrent()); // 100
 }
 
 function testItCanGetTheProgressOfAnAudioAsAPercent() {
-    $audio = new Audio();
-    $audio->setDuration(200);
-    $audio->setPlayed(0);
+    audio = new Audio();
+    audio.setDuration(200);
+    audio.setPlayed(0);
  
-    $progress = new Progress($audio);
-    $this->assertEquals(0, $progress->getAsPercent());
+    progress = new Progress(audio);
+    console.log(progress.getCurrent()); // 0
 
-    $audio->setPlayed(100);
-    $this->assertEquals(50, $progress->getAsPercent());
+    audio.setPlayed(100);
+    console.log(progr rent()); // 50
 
-    $audio->setPlayed(150);
-    $this->assertEquals(75, $progress->getAsPercent());
+    audio.setPlayed(150);
+    console.log(progress.getCurrent()); // 75
 
-    $audio->setPlayed(200);
-    $this->assertEquals(100, $progress->getAsPercent());
+    audio.setPlayed(200);
+    console.log(progress.getCurrent()); // 100
 }
 ```
 
