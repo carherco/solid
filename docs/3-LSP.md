@@ -157,3 +157,106 @@ A veces encontraremos solución para que las clases hijas respeten los contratos
 En otras ocasiones, terminaremos dándonos cuenta de que realmente tenemos contratos distintos, y por lo tanto, las clases no deben estar relacionadas entre ellas.
 
 
+## Otros ejemplos
+
+### Ejemplo: No se respeta el interfaz
+
+Tablero 2D a tablero 3D
+
+```js
+class Board {
+    height: int;
+    width: int;
+    // ...
+
+    addFigure(f: Figure, x: int, y: int) {}
+    getFigures(x: int, y: int): Figure[] {}
+    removeFigure(x: int, y: int) {}
+}
+```
+
+Parece una buena idea que el tablero 3D sea una extensión del 2D porque es lo mismo pero añadiendo una propiedad más
+
+```js
+class Board3D extends Board {
+    height: int;
+    width: int;
+    zpos: int;
+    // ...
+
+    addFigure(f: Figure, x: int, y: int, z: int) {}
+    getFigures(x: int, y: int, z: int): Figure[] {}
+    removeFigure(x: int, y: int, z: int) {}
+}
+```
+
+Pero en realidad, hay que modificar el interfaz de todos los métodos. Esto hará que nuestras clases Board y Board3D no sean intercambiables en el código. Nos hemos cargado el interfaz común.
+
+### Ejemplo: Preconditions can not be strengthened in a subclass
+
+```typescript
+class Car {
+    drive();
+    playRadio();
+    addLuggage();
+}
+
+class FormulaOneCar extends Car {
+    public void drive() {
+        //Code to make it go super fast
+    }
+
+    public void addLuggage() {
+        throw new Error("No room to carry luggage, sorry."); 
+    }
+
+    public void playRadio() {
+        throw new Error("No radio included.");
+    }
+}
+```
+
+El código programado para funcionar con Car y -en principio- con cualquier subtipo de Car no espera nunca un Error, y no funcionará para el caso concreto de FormulaOneCar.
+
+### Ejemplo: Postconditions can not be weakened in a subclass
+
+```typescript
+class ParentClass {
+    value: int;
+
+    setValue(value: int) {
+        this.value = Math.abs(value);
+    }
+
+    getValue(): int {
+        return this.value;
+    }
+}
+
+class ChildClass extends ParentClass {
+    value: int;
+
+    setValue(value: int) {
+        this.value = value;
+    }
+
+    getValue(): int {
+        return this.value;
+    }
+}
+
+const miClase = ParentClass();
+miClase.setValue(-7);
+const result = miClase.getValue()
+// ...
+Math.sqrt(result)
+```
+
+De nuevo el código programado para funcionar con ParentClass y con sus herederos da por supuesto que trata los números negativos de forma adecuada ya que el padre se asegura de que internamente nunca haya valores negativos.
+
+Todos las clases que hereden funcionarán correctamente excepto si alguna hace más laxa esa postcondición.
+
+- Precondiciones: condiciones del entorno en el que se va a ejecutar la clase ANTES de que la clase se ejecute. Si aseguramos que nuestras clases funcionan en un entorno X, una clase que para funcionar requiera (pre) un entorno más reducido/restringido se encontrará situaciones/condiciones inesperadas en las que no funcione porque no está preparada para ello.
+
+- Postcondiciones: condiciones del entorno DESPUÉS de haber ejecutado la clase. Si aseguramos que nuesto código funciona en un entorno X, si alguna clase hija crea (post) un entorno más "amplio", no podemos asegurar que todo funcione bien.
+
