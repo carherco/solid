@@ -7,6 +7,8 @@ Dado el siguiente interfaz de item IItem:
 ```typescript
 interface IItem
 {
+    getName(): string;
+
     applyDiscount(discount: number): number;
     applyPromocode(promocode: string): number;
 
@@ -33,6 +35,7 @@ El principio de segregación de interfaz dice que es mejor tener varios interfac
 ```typescript
 interface IItem
 {
+    getName(): string;
     setPrice(price: number): void;
 }
 
